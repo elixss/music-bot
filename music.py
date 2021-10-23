@@ -15,13 +15,14 @@ import traceback
 
 import discord
 import youtube_dl
-from async_timeout import timeout
 from discord import Embed
-from discord.ext import commands
 from youtube_dl import YoutubeDL
+from async_timeout import timeout
+from discord.ext import commands
 
+import Cogs._json
 # Silence useless bug reports messages
-from bot_config.settings import colour
+from bot_config.settings import colour, botowner, avatarowner
 
 youtube_dl.utils.bug_reports_message = lambda: ''
 
@@ -62,7 +63,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
 
     ytdl = YoutubeDL(YTDL_OPTIONS)
 
-    def __init__(self, ctx, source: discord.FFmpegPCMAudio, *, data: dict, volume: float = 0.5):
+    def __init__(self, ctx: commands.Context, source: discord.FFmpegPCMAudio, *, data: dict, volume: float = 0.5):
         super().__init__(source, volume)
 
         self.requester = ctx.author
@@ -77,7 +78,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
         self.thumbnail = data.get('thumbnail')
         self.description = data.get('description')
         self.duration = self.parse_duration(int(data.get('duration')))
-        #  self.current = self.parse_duration(int(data.get("progression")))
+      #  self.current = self.parse_duration(int(data.get("progression")))
         self.tags = data.get('tags')
         self.url = data.get('webpage_url')
         self.views = data.get('view_count')
@@ -85,11 +86,12 @@ class YTDLSource(discord.PCMVolumeTransformer):
         self.dislikes = data.get('dislike_count')
         self.stream_url = data.get('url')
 
+
     def __str__(self):
         return '**{0.title}** by **{0.uploader}**'.format(self)
 
     @classmethod
-    async def create_source(cls, ctx, search, *, loop: asyncio.BaseEventLoop = None):
+    async def create_source(cls, ctx: commands.Context, search, *, loop: asyncio.BaseEventLoop = None):
         loop = loop or asyncio.get_event_loop()
 
         partial = functools.partial(cls.ytdl.extract_info, search, download=False, process=False)
@@ -160,10 +162,10 @@ class Song:
                                description='Your song is **playing now.**'.format(self),
                                color=colour, url="{0.source.url}".format(self), timestamp=datetime.datetime.utcnow())
                  .add_field(name='⏰ Duration', value=self.source.duration)
-                 .add_field(name='<:YouTube:867719474625642526> Uploader',
+                 .add_field(name='<:YouTube:896131889876840498> Uploader',
                             value='[{0.source.uploader}]({0.source.uploader_url})'.format(self))
                  .add_field(name='<:link:867720150572597258> URL', value='[Click here]({0.source.url})'.format(self))
-                 #  .add_field(name='progression', value={self.source.current})
+              #  .add_field(name='progression', value={self.source.current})
                  .add_field(name="👀 Views", value=f"{self.source.views:,}")
                  .add_field(name="👍 Likes", value=f"{self.source.likes:,}")
                  .add_field(name="👎 Dislikes", value=f"{self.source.dislikes:,}")
@@ -197,7 +199,7 @@ class SongQueue(asyncio.Queue):
 
 
 class VoiceState:
-    def __init__(self, bot: commands.Bot, ctx):
+    def __init__(self, bot: commands.Bot, ctx: commands.Context):
         self.bot = bot
         self._ctx = ctx
 
@@ -289,6 +291,7 @@ class VoiceState:
 class Music(commands.Cog, name="Music"):
     """Music commands. **BETA Phase**"""
 
+
     def __init__(self, bot: commands.Bot):
 
         self.bot = bot
@@ -299,7 +302,7 @@ class Music(commands.Cog, name="Music"):
     async def on_ready(self):
         print("Music Cog loaded.")
 
-    def get_voice_state(self, ctx):
+    def get_voice_state(self, ctx: commands.Context):
         state = self.voice_states.get(ctx.guild.id)
         if not state or not state.exists:
             state = VoiceState(self.bot, ctx)
@@ -311,7 +314,7 @@ class Music(commands.Cog, name="Music"):
         for state in self.voice_states.values():
             self.bot.loop.create_task(state.stop())
 
-    def cog_check(self, ctx):
+    def cog_check(self, ctx: commands.Context):
         if not ctx.guild:
             raise commands.NoPrivateMessage('This command can\'t be used in DM channels.')
 
@@ -320,15 +323,15 @@ class Music(commands.Cog, name="Music"):
     async def __before_invoke(self, ctx):
         ctx.state = self.get_voice_state(ctx)
 
-    async def cog_before_invoke(self, ctx):
+    async def cog_before_invoke(self, ctx: commands.Context):
         ctx.voice_state = self.get_voice_state(ctx)
 
-    async def cog_command_error(self, ctx, error: commands.CommandError):
+    async def cog_command_error(self, ctx: commands.Context, error: commands.CommandError):
         print(traceback.print_exception(type(error), error, error.__traceback__))
 
     @commands.command(name='join')
     @commands.cooldown(1, 3, commands.BucketType.user)
-    async def _join(self, ctx, *, channel: discord.VoiceChannel = None):
+    async def _join(self, ctx: commands.Context, *, channel: discord.VoiceChannel = None):
         """Joins your Voice Channel or a mentioned one.
         """
 
@@ -344,10 +347,10 @@ class Music(commands.Cog, name="Music"):
         ctx.voice_state.voice = await destination.connect()
         await ctx.reply(f"Connected to channel {destination.mention}", mention_author=False)
 
-    @commands.command(name='leave')
+    @commands.command(name='leave', aliases=['disconnect'])
     @commands.has_guild_permissions(deafen_members=True, move_members=True)
     @commands.cooldown(1, 3, commands.BucketType.user)
-    async def _leave(self, ctx):
+    async def _leave(self, ctx: commands.Context):
 
         if not ctx.voice_state.voice:
             return await ctx.reply('Not connected to any voice channel.')
@@ -358,7 +361,7 @@ class Music(commands.Cog, name="Music"):
 
     @commands.command(name='volume')
     @commands.cooldown(1, 3, commands.BucketType.user)
-    async def _volume(self, ctx, *, volume: float):
+    async def _volume(self, ctx: commands.Context, *, volume: float):
         """Sets the volume of the player."""
 
         if not ctx.voice_state.is_playing:
@@ -379,9 +382,9 @@ class Music(commands.Cog, name="Music"):
 
             await ctx.reply(embed=embed, mention_author=False)
 
-    @commands.command(name='now')
+    @commands.command(name='now', aliases=['current', 'playing'])
     @commands.cooldown(1, 3, commands.BucketType.user)
-    async def _now(self, ctx):
+    async def _now(self, ctx: commands.Context):
         """Displays the currently playing song."""
 
         await ctx.reply(embed=ctx.voice_state.current.create_embed(), mention_author=False)
@@ -390,7 +393,7 @@ class Music(commands.Cog, name="Music"):
     @commands.command(name='pause')
     @commands.has_guild_permissions(deafen_members=True, move_members=True)
     @commands.cooldown(1, 3, commands.BucketType.user)
-    async def _pause(self, ctx):
+    async def _pause(self, ctx: commands.Context):
         """Pauses the currently playing song."""
 
         if ctx.voice_state.is_playing and ctx.voice_state.voice.is_playing():
@@ -405,7 +408,7 @@ class Music(commands.Cog, name="Music"):
     @commands.command(name='resume')
     @commands.has_guild_permissions(deafen_members=True, move_members=True)
     @commands.cooldown(1, 3, commands.BucketType.user)
-    async def _resume(self, ctx):
+    async def _resume(self, ctx: commands.Context):
         """Resumes a currently paused song."""
 
         if ctx.voice_state.is_playing and ctx.voice_state.voice.is_paused():
@@ -421,7 +424,7 @@ class Music(commands.Cog, name="Music"):
     @commands.command(name='stop')
     @commands.has_guild_permissions(deafen_members=True, move_members=True)
     @commands.cooldown(1, 3, commands.BucketType.user)
-    async def _stop(self, ctx):
+    async def _stop(self, ctx: commands.Context):
         """Stops playing song and clears the queue."""
 
         ctx.voice_state.songs.clear()
@@ -435,8 +438,9 @@ class Music(commands.Cog, name="Music"):
 
     @commands.command(name='skip')
     @commands.cooldown(1, 3, commands.BucketType.user)
-    async def _skip(self, ctx):
-        """Vote to skip a song.
+    async def _skip(self, ctx: commands.Context):
+        """Vote to skip a song. The requester can automatically skip.
+        3 skip votes are needed for the song to be skipped.
         """
 
         if not ctx.voice_state.is_playing:
@@ -462,7 +466,7 @@ class Music(commands.Cog, name="Music"):
 
     @commands.command(name='queue')
     @commands.cooldown(1, 3, commands.BucketType.user)
-    async def _queue(self, ctx, *, page: int = 1):
+    async def _queue(self, ctx: commands.Context, *, page: int = 1):
         """Shows the player's queue."""
 
         if len(ctx.voice_state.songs) == 0:
@@ -482,11 +486,11 @@ class Music(commands.Cog, name="Music"):
                  .set_footer(text='Viewing page {}/{}'.format(page, pages)))
         await ctx.reply(embed=embed, mention_author=False)
 
-    @commands.command(name='shuffle')
+    @commands.command(name='shuffle', disabled=True)
     @commands.is_owner()
     @commands.has_guild_permissions(deafen_members=True, move_members=True)
     @commands.cooldown(1, 3, commands.BucketType.user)
-    async def _shuffle(self, ctx):
+    async def _shuffle(self, ctx: commands.Context):
         """Shuffles the queue."""
 
         if len(ctx.voice_state.songs) == 0:
@@ -499,8 +503,8 @@ class Music(commands.Cog, name="Music"):
     @commands.command(name='remove')
     @commands.has_guild_permissions(deafen_members=True, move_members=True)
     @commands.cooldown(1, 3, commands.BucketType.user)
-    async def _remove(self, ctx, index: int):
-        """Removes a song from the queue."""
+    async def _remove(self, ctx: commands.Context, index: int):
+        """Removes a song from the queue. (Example: `<prefix>remove 3`)"""
 
         if len(ctx.voice_state.songs) == 0:
             return await ctx.reply('Empty queue.')
@@ -513,7 +517,7 @@ class Music(commands.Cog, name="Music"):
     @commands.is_owner()
     @commands.has_guild_permissions(deafen_members=True, move_members=True)
     @commands.cooldown(1, 3, commands.BucketType.user)
-    async def _loop(self, ctx):
+    async def _loop(self, ctx: commands.Context):
         """Loop/unloop a song."""
 
         ctx.voice_state.loop = not ctx.voice_state.loop
@@ -521,7 +525,7 @@ class Music(commands.Cog, name="Music"):
 
     @commands.command(name='play')
     @commands.cooldown(1, 5, commands.BucketType.user)
-    async def _play(self, ctx, *, search):
+    async def _play(self, ctx: commands.Context, *, search):
         """Plays a song.
         """
 
@@ -537,7 +541,7 @@ class Music(commands.Cog, name="Music"):
                 song = Song(source)
 
                 await ctx.voice_state.songs.put(song)
-                embed = discord.Embed(title=f"<:plus_sign:870437313975566337>  __{str(source.title)}__",
+                embed = discord.Embed(title=f"<:plus_sign:896133590440620052>  __{str(source.title)}__",
                                       description="Added your song **into the queue.** \n"
                                                   f"Duration: *{source.duration}*",
                                       colour=colour, timestamp=ctx.message.created_at,
@@ -546,16 +550,15 @@ class Music(commands.Cog, name="Music"):
                 embed.set_thumbnail(url=str(source.thumbnail))
                 await ctx.reply(embed=embed, mention_author=False)
 
-
-"""    @_join.before_invoke
+    @_join.before_invoke
     @_play.before_invoke
-    async def ensure_voice_state(self, ctx):
+    async def ensure_voice_state(self, ctx: commands.Context):
         if not ctx.author.voice or not ctx.author.voice.channel:
             raise commands.CommandError('You are not connected to any voice channel.')
 
         if ctx.voice_client:
             if ctx.voice_client.channel != ctx.author.voice.channel:
-                raise commands.CommandError('Bot is already in a voice channel.')"""
+                raise commands.CommandError('Bot is already in a voice channel.')
 
 
 def setup(bot):
